@@ -16,6 +16,34 @@ DATOS_PATH = "datos_senas.csv"
 MODELO_MANO_PATH = "hand_landmarker.task"
 
 
+def normalizar_landmarks(hand_landmarks):
+    """Normaliza landmarks relativos a la mano misma (posición y escala independientes)."""
+    coords = [(lm.x, lm.y, lm.z) for lm in hand_landmarks]
+    xs = [c[0] for c in coords]
+    ys = [c[1] for c in coords]
+    zs = [c[2] for c in coords]
+
+    # Restar la muñeca (landmark 0) para hacer posición-independiente
+    base_x, base_y, base_z = coords[0]
+
+    # Escalar por el tamaño de la mano (distancia máxima desde la muñeca)
+    max_dist = max(
+        ((x - base_x) ** 2 + (y - base_y) ** 2) ** 0.5
+        for x, y, z in coords[1:]
+    )
+    if max_dist < 1e-6:
+        max_dist = 1e-6
+
+    fila = []
+    for x, y, z in coords:
+        fila.extend([
+            (x - base_x) / max_dist,
+            (y - base_y) / max_dist,
+            (z - base_z) / max_dist,
+        ])
+    return fila
+
+
 def main():
     carpeta = sys.argv[1] if len(sys.argv) > 1 else "dataset"
     max_por_letra = int(sys.argv[2]) if len(sys.argv) > 2 else 500
@@ -104,9 +132,7 @@ def main():
 
                 if resultado.hand_landmarks:
                     for hand_landmarks in resultado.hand_landmarks:
-                        fila = []
-                        for lm in hand_landmarks:
-                            fila.extend([lm.x, lm.y, lm.z])
+                        fila = normalizar_landmarks(hand_landmarks)
                         fila.append(letra.lower())
                         writer.writerow(fila)
                         detectadas += 1

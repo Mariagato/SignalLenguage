@@ -1,7 +1,7 @@
 import pickle
 import numpy as np
 import cv2
-import streamlit as st
+import gradio as gr
 import mediapipe as mp
 from mediapipe.tasks.python import BaseOptions
 from mediapipe.tasks.python.vision import (
@@ -24,23 +24,18 @@ HAND_CONNECTIONS = [
     (5, 9), (9, 13), (13, 17),
 ]
 
+# Cargar modelos una sola vez
+with open(MODELO_PATH, "rb") as f:
+    modelo = pickle.load(f)
 
-@st.cache_resource
-def cargar_modelo():
-    with open(MODELO_PATH, "rb") as f:
-        return pickle.load(f)
-
-
-@st.cache_resource
-def crear_landmarker():
-    options = HandLandmarkerOptions(
-        base_options=BaseOptions(model_asset_path=MODELO_MANO_PATH),
-        running_mode=VisionTaskRunningMode.IMAGE,
-        num_hands=1,
-        min_hand_detection_confidence=0.3,
-        min_hand_presence_confidence=0.3,
-    )
-    return HandLandmarker.create_from_options(options)
+options = HandLandmarkerOptions(
+    base_options=BaseOptions(model_asset_path=MODELO_MANO_PATH),
+    running_mode=VisionTaskRunningMode.IMAGE,
+    num_hands=1,
+    min_hand_detection_confidence=0.3,
+    min_hand_presence_confidence=0.3,
+)
+landmarker = HandLandmarker.create_from_options(options)
 
 
 def dibujar_landmarks(img, hand_landmarks):
@@ -56,81 +51,55 @@ def dibujar_landmarks(img, hand_landmarks):
     return img
 
 
-def procesar_imagen(img_array):
-    landmarker = crear_landmarker()
-    modelo = cargar_modelo()
+def predecir(imagen):
+    if imagen is None:
+        return None, "No se recibio imagen"
 
-    rgb = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+    img = imagen.copy()
+    rgb = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=imagen)
     resultado = landmarker.detect(mp_image)
 
-    letra = None
-    confianza = 0.0
-    img_resultado = img_array.copy()
+    if not resultado.hand_landmarks:
+        return imagen, "No se detecto una mano. Intenta de nuevo."
 
-    if resultado.hand_landmarks:
-        for hand_landmarks in resultado.hand_landmarks:
-            img_resultado = dibujar_landmarks(img_resultado, hand_landmarks)
+    for hand_landmarks in resultado.hand_landmarks:
+        img = dibujar_landmarks(img, hand_landmarks)
 
-            fila = []
-            for lm in hand_landmarks:
-                fila.extend([lm.x, lm.y, lm.z])
-            datos = np.array(fila).reshape(1, -1)
+        fila = []
+        for lm in hand_landmarks:
+            fila.extend([lm.x, lm.y, lm.z])
+        datos = np.array(fila).reshape(1, -1)
 
-            letra = modelo.predict(datos)[0]
-            probabilidades = modelo.predict_proba(datos)[0]
-            confianza = max(probabilidades)
+        letra = modelo.predict(datos)[0]
+        probabilidades = modelo.predict_proba(datos)[0]
+        confianza = max(probabilidades)
 
-    return img_resultado, letra, confianza
+    resultado_texto = f"## Letra: {letra.upper()}\nConfianza: {confianza:.0%}"
+    return img, resultado_texto
 
 
-# --- UI ---
-st.set_page_config(page_title="Reconocimiento de Lenguaje de Senas", layout="wide")
+# --- Interfaz Gradio ---
+with gr.Blocks(title="Reconocimiento de Lenguaje de Senas", theme=gr.themes.Soft()) as demo:
+    gr.Markdown("# 🤟 Reconocimiento de Lenguaje de Senas")
+    gr.Markdown("Toma una foto haciendo una sena del **alfabeto ASL** y el sistema la identificara.")
 
-st.title("Reconocimiento de Lenguaje de Senas")
-st.markdown("Toma una foto haciendo una sena del **alfabeto ASL** y el sistema la identificara.")
+    with gr.Row():
+        with gr.Column(scale=2):
+            entrada = gr.Image(sources=["webcam"], type="numpy", label="Camara")
+            boton = gr.Button("Identificar Sena", variant="primary", size="lg")
 
-col1, col2 = st.columns([2, 1])
+        with gr.Column(scale=1):
+            imagen_resultado = gr.Image(label="Resultado", type="numpy")
+            texto_resultado = gr.Markdown("Toma una foto y haz clic en **Identificar Sena**")
 
-with col1:
-    foto = st.camera_input("Haz una sena y toma la foto")
+    boton.click(fn=predecir, inputs=entrada, outputs=[imagen_resultado, texto_resultado])
 
-    if foto is not None:
-        # Convertir la foto a array de OpenCV
-        file_bytes = np.asarray(bytearray(foto.read()), dtype=np.uint8)
-        img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-
-        img_resultado, letra, confianza = procesar_imagen(img)
-
-        # Mostrar imagen con landmarks
-        st.image(cv2.cvtColor(img_resultado, cv2.COLOR_BGR2RGB), width="stretch")
-
-        if letra:
-            st.markdown(f"""
-            <div style="background-color: #1a1a2e; padding: 30px; border-radius: 15px; text-align: center; margin-top: 10px;">
-                <h1 style="font-size: 100px; margin: 0; color: #00ff88;">{letra.upper()}</h1>
-                <p style="font-size: 24px; color: #aaa; margin: 0;">Confianza: {confianza:.0%}</p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.warning("No se detecto una mano en la imagen. Intenta de nuevo con la mano mas visible.")
-
-with col2:
-    st.markdown("### Instrucciones")
-    st.markdown("""
-    1. Permite el acceso a la camara
-    2. Haz una sena del alfabeto ASL frente a la camara
-    3. Haz clic en **Toma una foto** para capturar
-    4. El sistema detectara la letra
-    5. Toma otra foto para probar otra sena
-    """)
-
-    st.markdown("### Alfabeto ASL")
-    st.image(
+    gr.Markdown("### Referencia - Alfabeto ASL")
+    gr.Image(
         "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7d/American_Sign_Language_ASL.svg/800px-American_Sign_Language_ASL.svg.png",
-        caption="Referencia del alfabeto ASL",
-        width="stretch",
+        label="Alfabeto ASL",
+        show_download_button=False,
     )
 
-    st.markdown("---")
-    st.markdown(f"**Letras disponibles:** {', '.join(sorted(cargar_modelo().classes_)).upper()}")
+demo.launch()
