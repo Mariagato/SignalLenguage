@@ -72,7 +72,7 @@ def predecir(imagen):
 
     if not resultado.hand_landmarks:
         cv2.putText(img, "No hand detected", (10, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         return img
 
     for hand_landmarks in resultado.hand_landmarks:
@@ -93,12 +93,12 @@ def predecir(imagen):
     return img
 
 
-# --- Interfaz Gradio ---
-with gr.Blocks(title="Reconocimiento de Lenguaje de Senas", theme=gr.themes.Soft()) as demo:
-    gr.Markdown("# Reconocimiento de Lenguaje de Senas")
-    gr.Markdown("Muestra una sena del **alfabeto ASL** frente a la camara.")
+# --- Gradio Interface ---
+with gr.Blocks(title="ASL Sign Language Recognition", theme=gr.themes.Soft()) as demo:
+    gr.Markdown("# ASL Sign Language Recognition")
+    gr.Markdown("Show a sign from the **ASL alphabet** in front of the camera.")
 
-    entrada = gr.Image(sources=["webcam"], type="numpy", label="Camara",
+    entrada = gr.Image(sources=["webcam"], type="numpy", show_label=False,
                        streaming=True)
     entrada.stream(fn=predecir, inputs=entrada, outputs=entrada)
 
