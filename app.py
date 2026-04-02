@@ -38,6 +38,17 @@ options = HandLandmarkerOptions(
 landmarker = HandLandmarker.create_from_options(options)
 
 
+def normalizar_landmarks(hand_landmarks):
+    """Normaliza landmarks relativo a la muñeca y escala por tamaño de mano."""
+    coords = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks])
+    wrist = coords[0].copy()
+    coords = coords - wrist
+    max_dist = np.max(np.linalg.norm(coords, axis=1))
+    if max_dist > 0:
+        coords = coords / max_dist
+    return coords.flatten()
+
+
 def dibujar_landmarks(img, hand_landmarks):
     h, w, _ = img.shape
     puntos = []
@@ -53,47 +64,42 @@ def dibujar_landmarks(img, hand_landmarks):
 
 def predecir(imagen):
     if imagen is None:
-        return None, "No se recibio imagen"
+        return imagen
 
     img = imagen.copy()
-    rgb = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=imagen)
     resultado = landmarker.detect(mp_image)
 
     if not resultado.hand_landmarks:
-        return imagen, "No se detecto una mano. Intenta de nuevo."
+        cv2.putText(img, "No hand detected", (10, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+        return img
 
     for hand_landmarks in resultado.hand_landmarks:
         img = dibujar_landmarks(img, hand_landmarks)
 
-        fila = []
-        for lm in hand_landmarks:
-            fila.extend([lm.x, lm.y, lm.z])
-        datos = np.array(fila).reshape(1, -1)
-
+        datos = normalizar_landmarks(hand_landmarks).reshape(1, -1)
         letra = modelo.predict(datos)[0]
         probabilidades = modelo.predict_proba(datos)[0]
         confianza = max(probabilidades)
 
-    resultado_texto = f"## Letra: {letra.upper()}\nConfianza: {confianza:.0%}"
-    return img, resultado_texto
+        h, w, _ = img.shape
+        texto = f"{letra.upper()} ({confianza:.0%})"
+        cv2.putText(img, texto, (10, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.8, (0, 0, 0), 6)
+        cv2.putText(img, texto, (10, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.8, (0, 255, 0), 3)
+
+    return img
 
 
 # --- Interfaz Gradio ---
 with gr.Blocks(title="Reconocimiento de Lenguaje de Senas", theme=gr.themes.Soft()) as demo:
-    gr.Markdown("# 🤟 Reconocimiento de Lenguaje de Senas")
-    gr.Markdown("Toma una foto haciendo una sena del **alfabeto ASL** y el sistema la identificara.")
+    gr.Markdown("# Reconocimiento de Lenguaje de Senas")
+    gr.Markdown("Muestra una sena del **alfabeto ASL** frente a la camara.")
 
-    with gr.Row():
-        with gr.Column(scale=2):
-            entrada = gr.Image(sources=["webcam"], type="numpy", label="Camara")
-            boton = gr.Button("Identificar Sena", variant="primary", size="lg")
-
-        with gr.Column(scale=1):
-            texto_resultado = gr.Markdown("Toma una foto y haz clic en **Identificar Sena**")
-            imagen_resultado = gr.Image(label="Resultado", type="numpy", height=250)
-
-    boton.click(fn=predecir, inputs=entrada, outputs=[imagen_resultado, texto_resultado])
-
+    entrada = gr.Image(sources=["webcam"], type="numpy", label="Camara",
+                       streaming=True)
+    entrada.stream(fn=predecir, inputs=entrada, outputs=entrada)
 
 demo.launch()
