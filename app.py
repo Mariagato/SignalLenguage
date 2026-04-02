@@ -100,6 +100,7 @@ with gr.Blocks(title="ASL Sign Language Recognition", theme=gr.themes.Soft()) as
 
     entrada = gr.Image(sources=["webcam"], type="numpy", show_label=False,
                        streaming=True)
-    entrada.stream(fn=predecir, inputs=entrada, outputs=entrada)
+    entrada.stream(fn=predecir, inputs=entrada, outputs=entrada,
+                   stream_every=0.3)
 
 demo.launch()
