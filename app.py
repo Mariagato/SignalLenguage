@@ -95,11 +95,5 @@ with gr.Blocks(title="Reconocimiento de Lenguaje de Senas", theme=gr.themes.Soft
 
     boton.click(fn=predecir, inputs=entrada, outputs=[imagen_resultado, texto_resultado])
 
-    gr.Markdown("### Referencia - Alfabeto ASL")
-    gr.Image(
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7d/American_Sign_Language_ASL.svg/800px-American_Sign_Language_ASL.svg.png",
-        label="Alfabeto ASL",
-        show_download_button=False,
-    )
 
 demo.launch()
