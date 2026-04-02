@@ -90,8 +90,8 @@ with gr.Blocks(title="Reconocimiento de Lenguaje de Senas", theme=gr.themes.Soft
             boton = gr.Button("Identificar Sena", variant="primary", size="lg")
 
         with gr.Column(scale=1):
-            imagen_resultado = gr.Image(label="Resultado", type="numpy")
             texto_resultado = gr.Markdown("Toma una foto y haz clic en **Identificar Sena**")
+            imagen_resultado = gr.Image(label="Resultado", type="numpy", height=250)
 
     boton.click(fn=predecir, inputs=entrada, outputs=[imagen_resultado, texto_resultado])
 
