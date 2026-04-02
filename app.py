@@ -103,7 +103,7 @@ with col1:
         img_resultado, letra, confianza = procesar_imagen(img)
 
         # Mostrar imagen con landmarks
-        st.image(cv2.cvtColor(img_resultado, cv2.COLOR_BGR2RGB), use_container_width=True)
+        st.image(cv2.cvtColor(img_resultado, cv2.COLOR_BGR2RGB), width="stretch")
 
         if letra:
             st.markdown(f"""
@@ -129,7 +129,7 @@ with col2:
     st.image(
         "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7d/American_Sign_Language_ASL.svg/800px-American_Sign_Language_ASL.svg.png",
         caption="Referencia del alfabeto ASL",
-        use_container_width=True,
+        width="stretch",
     )
 
     st.markdown("---")
